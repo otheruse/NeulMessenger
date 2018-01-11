@@ -67,7 +67,6 @@ int NStream::find(uint32_t timeout, std::initializer_list<const char*> args, cha
 }
 
 void NStream::putChar(void* ptr, char c) {
-	Serial.write((uint8_t*) &c, 1);
 	((NStream*) ptr)->write((uint8_t*) &c, 1);
 }
 

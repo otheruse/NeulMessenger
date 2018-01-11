@@ -7,7 +7,7 @@
 
 #include "ArduinoNStream.h"
 
-ArduinoNStream::ArduinoNStream(Stream& stream) : stream(stream), timeout(stream.getTimeout())
+ArduinoNStream::ArduinoNStream(Stream& stream, Stream* echoStream, bool echoWrite) : stream(stream), _echoStream(echoStream), timeout(stream.getTimeout()), echoWrite(echoWrite)
 {
 }
 
@@ -23,8 +23,8 @@ int ArduinoNStream::read() {
 		}
 	}
 	int c = stream.read();
-	if (c >=0) {
-		Serial.write(c);
+	if (_echoStream!= nullptr && c >=0) {
+		_echoStream->write(c);
 	}
 	return c;
 }
@@ -34,6 +34,9 @@ size_t ArduinoNStream::available() {
 }
 
 size_t ArduinoNStream::write(const uint8_t* buf, size_t nbyte) {
+	if (_echoStream != nullptr && echoWrite) {
+		_echoStream->write((const char*)buf,  nbyte);
+	}
 	return stream.write(buf, nbyte);
 }
 

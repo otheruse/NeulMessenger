@@ -30,7 +30,14 @@
 const int commands = 2;
 const char* find[commands] = { "reboot", "echo" };
 
+//#define DEBUG
+
+#if defined (DEBUG)
+ArduinoNStream stream(MODEM_STREAM, &DEBUG_STREAM, false);
+#else
 ArduinoNStream stream(MODEM_STREAM);
+#endif
+
 MDM9206Module module(stream);
 //NeulMessenger messenger(module, "37.139.31.129", 5683);
 NeulMessenger messenger(module, "172.16.14.22", 5683);
@@ -41,8 +48,8 @@ timestamp_t startTime;
 
 bool sendCommandExpectResponse(const char* command, const char* response, uint32_t maxWait) {
 	stream.flush();
-	DEBUG_STREAM.println(command);
-	MODEM_STREAM.println(command);
+	stream.printf(command);
+	stream.write((uint8_t*)"\r\n", 2);
 	return stream.find(maxWait, {response}) == 0;
 }
 
@@ -58,25 +65,49 @@ void setup() {
 	delay(3000);
 /*
  */
+//	sendCommandExpectResponse("AT+CFUN=0","OK", 3000);
+
+	DEBUG_STREAM.println("Connecting to NB-IoT network...");
+	sendCommandExpectResponse("AT+QCFG=\"gprsattach\",1","OK", 3000);
+	sendCommandExpectResponse("AT+QCFG=\"iotopmode\",1,1","OK", 3000);
+	sendCommandExpectResponse("AT+QCFG=\"roamservice\",2,1","OK", 3000);
+
+	sendCommandExpectResponse("AT+QCFG=\"nwscanseq\",030201,1","OK", 3000);
+	sendCommandExpectResponse("AT+QCFG=\"band\",0,0,80,1","OK", 3000);
+	sendCommandExpectResponse("AT+QCFG=\"nbsibscramble\",1","OK", 3000);
+	sendCommandExpectResponse("AT+QCFG=\"nwscanmode\"=3,1","OK", 3000);
+	sendCommandExpectResponse("AT+CFUN=1","OK", 3000);
+	delaymS(2000);
 //	sendCommandExpectResponse("AT+CGDCONT=1,\"IP\",\"iot.test.telekom\"", "OK", 3000);
 	sendCommandExpectResponse("AT+CGDCONT=1,\"IP\",\"oceanconnect.t-mobile.nl\"", "OK", 3000);
-	sendCommandExpectResponse("AT+QCFG=\"iotopmode\",1,1","OK", 3000);
-	sendCommandExpectResponse("AT+QCFG=\"nwscanseq\",030201,1","OK", 3000);
-	sendCommandExpectResponse("AT+QCFG=\"nbsibscramble\",1","OK", 3000);
-	sendCommandExpectResponse("AT+CGREG=1","OK", 3000);
-	sendCommandExpectResponse("AT+CGATT=1","OK", 60000);
+	sendCommandExpectResponse("AT+COPS=1,2,20416,9", "OK", 3000);
+	sendCommandExpectResponse("AT+CGREG=2","OK", 3000);
+	if (!sendCommandExpectResponse("AT+CGATT=1","OK", 120000)) {
+		return;
+	}
 /**/
 	sendCommandExpectResponse("AT+CGPADDR=1","OK", 3000);
+	DEBUG_STREAM.println("Connected!");
 	char imei[20];
 	module.getImei(imei);
 	DEBUG_STREAM.print("IMEI: ");
 	DEBUG_STREAM.println(imei);
+	DEBUG_STREAM.println("Sending Neul message...");
 	char message[] = "Neul message from BG96";
-	messenger.sendMessage((uint8_t*)message, strlen(message));
+	if (messenger.sendMessage((uint8_t*)message, strlen(message)) == NeulMessenger::Result::Success) {
+		DEBUG_STREAM.println("Neul message sent successfully!");
+	}
+	else {
+		DEBUG_STREAM.println("Error sending message!");
+	}
 	size_t bytes = messenger.receiveMessage(rbuf, sizeof(rbuf), 2000);
-	DEBUG_STREAM.println("\r\n");
-	DEBUG_STREAM.print(bytes, 10);
-	DEBUG_STREAM.println(" bytes received");
+	if (bytes == 0) {
+		DEBUG_STREAM.println("No response received\r\n");
+	}
+	else {
+		DEBUG_STREAM.print(bytes, 10);
+		DEBUG_STREAM.println(" bytes received");
+	}
 	DEBUG_STREAM.println("\r\n\r\nStarting serial pass-through");
 	startTime = getTimestamp();
 	// Clear user input buffer
@@ -104,12 +135,22 @@ void loop()
 	timestamp_t elapsed = getTimestamp() - startTime;
 	if (elapsed > 60000) {
 		startTime = getTimestamp();
+		DEBUG_STREAM.println("Sending Neul message...");
 		const char* testMessage = "Periodic test message";
-		messenger.sendMessage((uint8_t*)testMessage, strlen(testMessage));
+		if (messenger.sendMessage((uint8_t*)testMessage, strlen(testMessage)) == NeulMessenger::Result::Success) {
+			DEBUG_STREAM.println("Neul message sent successfully!");
+		}
+		else {
+			DEBUG_STREAM.println("Error sending message");
+		}
 		size_t bytes = messenger.receiveMessage(rbuf, sizeof(rbuf), 2000);
-		DEBUG_STREAM.println("\r\n");
-		DEBUG_STREAM.print(bytes, 10);
-		DEBUG_STREAM.println(" bytes received");
+		if (bytes == 0) {
+			DEBUG_STREAM.println("No response received\r\n");
+		}
+		else {
+			DEBUG_STREAM.print(bytes, 10);
+			DEBUG_STREAM.println(" bytes received");
+		}
 	}
 	static bool echo = false;
 	static size_t index[commands] = { };
@@ -120,7 +161,7 @@ void loop()
 			if (checkMatch(c, find[i], index[i])) {
 				switch (i) {
 				case 0:
-					NVIC_SystemReset();
+//					NVIC_SystemReset();
 					break;
 				case 1:
 					echo = !echo;

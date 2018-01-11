@@ -13,9 +13,11 @@
 
 class ArduinoNStream : public NStream {
 	Stream& stream;
+	Stream* _echoStream;
 	uint32_t timeout;
+	bool echoWrite;
 public:
-	ArduinoNStream(Stream& stream);
+	ArduinoNStream(Stream& stream, Stream* echoStream = nullptr, bool echoWrite = false);
 	virtual ~ArduinoNStream();
 	virtual int read() override;
 	virtual size_t available() override;

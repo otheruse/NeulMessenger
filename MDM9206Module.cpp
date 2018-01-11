@@ -41,8 +41,8 @@ bool MDM9206Module::closeSocket(int socket) {
 
 bool MDM9206Module::sendUDP(int socket, char* ip, uint16_t port, uint8_t* buffer, size_t len) {
 	serial.flush();
-	serial.printf("AT+QISEND=%d,%u,\"%s\",%d\r\n", socket, len, ip, port);
-	if (serial.find(1000, { "> ", "ERROR" }) != 0) {
+	serial.printf("AT+QISEND=%d,%lu,\"%s\",%d\r\n", socket, len, ip, port);
+	if (serial.find(2000, { "> ", "ERROR" }) != 0) {
 		return false;
 	}
 	serial.write(buffer, len);
@@ -63,8 +63,8 @@ size_t MDM9206Module::receiveUDP(int socket, uint8_t* buffer, size_t len, uint32
 			char buf[10]{};
 			serial.readLine(buf, sizeof(buf), timeout - (getTimestamp() - start));
 			int sock = atoi(buf);
-			Serial.print("Message receive indicator found on socket ");
-			Serial.println(sock, 10);
+//			Serial.print("Message receive indicator found on socket ");
+//			Serial.println(sock, 10);
 			if (sock == socket) {
 				found = true;
 				break;
